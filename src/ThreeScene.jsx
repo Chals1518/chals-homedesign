@@ -4,8 +4,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 
 function ThreeScene({ rooms }) {
   const containerRef = useRef(null)
-  const sceneRef = useRef(null)
-  const rendererRef = useRef(null)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -13,7 +11,6 @@ function ThreeScene({ rooms }) {
     // Scene setup
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x1a1a2e)
-    sceneRef.current = scene
 
     // Camera
     const camera = new THREE.PerspectiveCamera(
@@ -30,7 +27,6 @@ function ThreeScene({ rooms }) {
     renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight)
     renderer.shadowMap.enabled = true
     containerRef.current.appendChild(renderer.domElement)
-    rendererRef.current = renderer
 
     // Controls
     const controls = new OrbitControls(camera, renderer.domElement)
@@ -47,7 +43,7 @@ function ThreeScene({ rooms }) {
     directionalLight.castShadow = true
     scene.add(directionalLight)
 
-    // Floor
+    // Base floor
     const floorGeometry = new THREE.PlaneGeometry(50, 50)
     const floorMaterial = new THREE.MeshStandardMaterial({ 
       color: 0x2a2a4e,
@@ -55,6 +51,7 @@ function ThreeScene({ rooms }) {
     })
     const floor = new THREE.Mesh(floorGeometry, floorMaterial)
     floor.rotation.x = -Math.PI / 2
+    floor.position.y = -0.01
     floor.receiveShadow = true
     scene.add(floor)
 
@@ -62,80 +59,104 @@ function ThreeScene({ rooms }) {
     const grid = new THREE.GridHelper(50, 50, 0x444444, 0x333333)
     scene.add(grid)
 
-    // Room colors matching 2D view
-    const roomColors = {
-      'Living Room': 0x64c8ff,
-      'Bedroom': 0xc896ff,
-      'Kitchen': 0xffc864,
-      'Bathroom': 0x64ffc8,
-      'Dining Room': 0xff9696,
-      'Office': 0xc8c8c8,
+    // Floor colors
+    const floorColors = {
+      'wood': 0x8B4513,
+      'tile': 0xb0c4de,
+      'carpet': 0x696969,
+      'marble': 0xf0f0f0,
+      'concrete': 0x808080
     }
 
     // Create 3D rooms
     rooms.forEach(room => {
-      const width = room.width / 50  // Convert to meters
+      const width = room.width / 50
       const depth = room.height / 50
-      const height = 2.8  // Wall height in meters
+      const height = 2.8
       
-      // Position (convert from canvas coords to 3D coords)
       const x = (room.x / 50) - 9 + (width / 2)
       const z = (room.y / 50) - 6 + (depth / 2)
 
-      const color = roomColors[room.type] || 0x64c8ff
+      const wallColor = new THREE.Color(room.wallColor || '#ffffff')
+      const floorColor = floorColors[room.floorType] || floorColors['wood']
 
-      // Floor of the room
+      // Room floor
       const roomFloorGeo = new THREE.PlaneGeometry(width, depth)
       const roomFloorMat = new THREE.MeshStandardMaterial({ 
-        color: color,
-        opacity: 0.3,
-        transparent: true
+        color: floorColor,
+        roughness: room.floorType === 'marble' ? 0.2 : 0.8,
+        metalness: room.floorType === 'marble' ? 0.1 : 0
       })
       const roomFloor = new THREE.Mesh(roomFloorGeo, roomFloorMat)
       roomFloor.rotation.x = -Math.PI / 2
       roomFloor.position.set(x, 0.01, z)
+      roomFloor.receiveShadow = true
       scene.add(roomFloor)
 
-      // Walls
+      // Floor pattern for wood
+      if (room.floorType === 'wood') {
+        for (let i = -depth/2 + 0.1; i < depth/2; i += 0.3) {
+          const plankGeo = new THREE.PlaneGeometry(width - 0.02, 0.02)
+          const plankMat = new THREE.MeshStandardMaterial({ color: 0x5D3A1A })
+          const plank = new THREE.Mesh(plankGeo, plankMat)
+          plank.rotation.x = -Math.PI / 2
+          plank.position.set(x, 0.02, z + i)
+          scene.add(plank)
+        }
+      }
+
+      // Floor pattern for tile
+      if (room.floorType === 'tile') {
+        const tileSize = 0.5
+        for (let tx = -width/2 + tileSize/2; tx < width/2; tx += tileSize) {
+          for (let tz = -depth/2 + tileSize/2; tz < depth/2; tz += tileSize) {
+            const groutGeo = new THREE.PlaneGeometry(0.02, tileSize)
+            const groutMat = new THREE.MeshStandardMaterial({ color: 0x8a9aae })
+            const groutV = new THREE.Mesh(groutGeo, groutMat)
+            groutV.rotation.x = -Math.PI / 2
+            groutV.position.set(x + tx, 0.02, z + tz)
+            scene.add(groutV)
+          }
+        }
+      }
+
+      // Wall material with room's wall color
       const wallMaterial = new THREE.MeshStandardMaterial({
-        color: color,
-        opacity: 0.7,
-        transparent: true,
+        color: wallColor,
+        roughness: 0.9,
         side: THREE.DoubleSide
       })
 
+      const wallThickness = 0.1
+
       // Front wall
-      const frontWall = new THREE.Mesh(
-        new THREE.PlaneGeometry(width, height),
-        wallMaterial
-      )
+      const frontWallGeo = new THREE.BoxGeometry(width, height, wallThickness)
+      const frontWall = new THREE.Mesh(frontWallGeo, wallMaterial)
       frontWall.position.set(x, height / 2, z + depth / 2)
+      frontWall.castShadow = true
+      frontWall.receiveShadow = true
       scene.add(frontWall)
 
       // Back wall
-      const backWall = new THREE.Mesh(
-        new THREE.PlaneGeometry(width, height),
-        wallMaterial
-      )
+      const backWall = new THREE.Mesh(frontWallGeo, wallMaterial)
       backWall.position.set(x, height / 2, z - depth / 2)
+      backWall.castShadow = true
+      backWall.receiveShadow = true
       scene.add(backWall)
 
       // Left wall
-      const leftWall = new THREE.Mesh(
-        new THREE.PlaneGeometry(depth, height),
-        wallMaterial
-      )
-      leftWall.rotation.y = Math.PI / 2
+      const sideWallGeo = new THREE.BoxGeometry(wallThickness, height, depth)
+      const leftWall = new THREE.Mesh(sideWallGeo, wallMaterial)
       leftWall.position.set(x - width / 2, height / 2, z)
+      leftWall.castShadow = true
+      leftWall.receiveShadow = true
       scene.add(leftWall)
 
       // Right wall
-      const rightWall = new THREE.Mesh(
-        new THREE.PlaneGeometry(depth, height),
-        wallMaterial
-      )
-      rightWall.rotation.y = Math.PI / 2
+      const rightWall = new THREE.Mesh(sideWallGeo, wallMaterial)
       rightWall.position.set(x + width / 2, height / 2, z)
+      rightWall.castShadow = true
+      rightWall.receiveShadow = true
       scene.add(rightWall)
 
       // Room label
@@ -143,7 +164,7 @@ function ThreeScene({ rooms }) {
       const context = canvas.getContext('2d')
       canvas.width = 256
       canvas.height = 64
-      context.fillStyle = '#ffffff'
+      context.fillStyle = '#000000'
       context.font = 'bold 24px Arial'
       context.textAlign = 'center'
       context.fillText(room.type, 128, 40)
