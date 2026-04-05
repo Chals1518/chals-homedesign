@@ -1,124 +1,44 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-.app {
-  min-height: 100vh;
+.view-toggle {
+  display: flex;
+  gap: 5px;
   background-color: #0f0f1a;
-  color: white;
-  font-family: Arial, sans-serif;
+  padding: 4px;
+  border-radius: 8px;
 }
 
-.header {
-  padding: 15px 20px;
-  background-color: #1a1a2e;
-  text-align: center;
-  border-bottom: 1px solid #333;
-}
-
-.header h1 {
-  font-size: 24px;
-  margin-bottom: 5px;
-}
-
-.header p {
-  font-size: 13px;
-  color: #888;
-}
-
-.toolbar {
-  padding: 12px 20px;
-  background-color: #16213e;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.room-selector {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.room-btn {
-  padding: 8px 14px;
+.view-toggle button {
+  padding: 8px 16px;
   background-color: transparent;
-  color: white;
-  border: 2px solid #444;
-  border-radius: 5px;
+  color: #888;
+  border: none;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   transition: all 0.2s;
 }
 
-.room-btn:hover {
-  transform: scale(1.05);
+.view-toggle button:hover:not(:disabled) {
+  color: white;
 }
 
-.room-btn.active {
-  transform: scale(1.05);
+.view-toggle button.active {
+  background-color: #64c8ff;
+  color: #000;
   font-weight: bold;
 }
 
-.actions {
-  display: flex;
-  gap: 10px;
-}
-
-.actions button {
-  padding: 8px 14px;
-  background-color: #444;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.actions button:hover:not(:disabled) {
-  background-color: #555;
-}
-
-.actions button:disabled {
-  opacity: 0.5;
+.view-toggle button:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-.clear-btn {
-  background-color: #e74c3c !important;
+.controls-hint {
+  text-align: center;
+  padding: 10px;
+  color: #666;
+  font-size: 13px;
 }
 
-.clear-btn:hover {
-  background-color: #c0392b !important;
-}
-
-.stats {
-  padding: 10px 20px;
-  background-color: #1a1a2e;
-  display: flex;
-  justify-content: center;
-  gap: 30px;
-  font-size: 14px;
-  color: #aaa;
-  border-bottom: 1px solid #333;
-}
-
-.stats strong {
-  color: #64c8ff;
-}
-
-.workspace {
-  padding: 20px;
-  display: flex;
-  justify-content: center;
-}
-
-.floor-canvas {
-  border: 2px solid #333;
-  border-radius: 8px;
-  cursor: crosshair;
+.controls-hint p {
+  margin: 0;
 }

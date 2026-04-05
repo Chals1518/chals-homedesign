@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import './App.css'
+import ThreeScene from './ThreeScene'
 
 function App() {
   const canvasRef = useRef(null)
@@ -8,6 +9,7 @@ function App() {
   const [rooms, setRooms] = useState([])
   const [currentRoom, setCurrentRoom] = useState(null)
   const [selectedRoomType, setSelectedRoomType] = useState('Living Room')
+  const [viewMode, setViewMode] = useState('2d') // '2d' or '3d'
 
   const roomTypes = [
     { name: 'Living Room', color: 'rgba(100, 200, 255, 0.3)', border: '#64c8ff' },
@@ -23,7 +25,10 @@ function App() {
   }
 
   useEffect(() => {
+    if (viewMode !== '2d') return
+    
     const canvas = canvasRef.current
+    if (!canvas) return
     const ctx = canvas.getContext('2d')
     
     // Clear canvas
@@ -92,7 +97,7 @@ function App() {
         Math.min(currentRoom.x, currentRoom.x + currentRoom.width) + 5, 
         Math.min(currentRoom.y, currentRoom.y + currentRoom.height) - 10)
     }
-  }, [rooms, currentRoom, selectedRoomType])
+  }, [rooms, currentRoom, selectedRoomType, viewMode])
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current
@@ -167,34 +172,60 @@ function App() {
                 backgroundColor: selectedRoomType === room.name ? room.color : 'transparent'
               }}
               onClick={() => setSelectedRoomType(room.name)}
+              disabled={viewMode === '3d'}
             >
               {room.name}
             </button>
           ))}
         </div>
         <div className="actions">
-          <button onClick={undoLast} disabled={rooms.length === 0}>↩️ Undo</button>
-          <button onClick={clearCanvas} className="clear-btn">🗑️ Clear All</button>
+          <button onClick={undoLast} disabled={rooms.length === 0 || viewMode === '3d'}>↩️ Undo</button>
+          <button onClick={clearCanvas} className="clear-btn" disabled={viewMode === '3d'}>🗑️ Clear All</button>
         </div>
       </div>
 
       <div className="stats">
         <span>Rooms: <strong>{rooms.length}</strong></span>
         <span>Total Area: <strong>{totalArea} m²</strong></span>
+        <div className="view-toggle">
+          <button 
+            className={viewMode === '2d' ? 'active' : ''} 
+            onClick={() => setViewMode('2d')}
+          >
+            📐 2D View
+          </button>
+          <button 
+            className={viewMode === '3d' ? 'active' : ''} 
+            onClick={() => setViewMode('3d')}
+            disabled={rooms.length === 0}
+          >
+            🎮 3D View
+          </button>
+        </div>
       </div>
       
       <main className="workspace">
-        <canvas
-          ref={canvasRef}
-          width={900}
-          height={600}
-          className="floor-canvas"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
-        />
+        {viewMode === '2d' ? (
+          <canvas
+            ref={canvasRef}
+            width={900}
+            height={600}
+            className="floor-canvas"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          />
+        ) : (
+          <ThreeScene rooms={rooms} />
+        )}
       </main>
+
+      {viewMode === '3d' && (
+        <div className="controls-hint">
+          <p>🖱️ Left click + drag to rotate • Scroll to zoom • Right click + drag to pan</p>
+        </div>
+      )}
     </div>
   )
 }
