@@ -7,12 +7,17 @@ function App() {
   const [isDrawing, setIsDrawing] = useState(false)
   const [startPos, setStartPos] = useState({ x: 0, y: 0 })
   const [rooms, setRooms] = useState([])
+  const [furniture, setFurniture] = useState([])
   const [currentRoom, setCurrentRoom] = useState(null)
   const [selectedRoomType, setSelectedRoomType] = useState('Living Room')
   const [selectedWallColor, setSelectedWallColor] = useState('#ffffff')
   const [selectedFloorType, setSelectedFloorType] = useState('wood')
   const [viewMode, setViewMode] = useState('2d')
   const [selectedRoomIndex, setSelectedRoomIndex] = useState(null)
+  const [selectedFurnitureIndex, setSelectedFurnitureIndex] = useState(null)
+  const [draggingFurniture, setDraggingFurniture] = useState(null)
+  const [isDraggingExisting, setIsDraggingExisting] = useState(false)
+  const [mode, setMode] = useState('room')
 
   const roomTypes = [
     { name: 'Living Room', color: 'rgba(100, 200, 255, 0.3)', border: '#64c8ff' },
@@ -35,11 +40,26 @@ function App() {
   ]
 
   const floorTypes = [
-    { name: 'wood', label: '🪵 Wood', color: '#8B4513', pattern: 'wood' },
-    { name: 'tile', label: '🔲 Tile', color: '#b0c4de', pattern: 'tile' },
-    { name: 'carpet', label: '🟫 Carpet', color: '#696969', pattern: 'carpet' },
-    { name: 'marble', label: '⬜ Marble', color: '#f0f0f0', pattern: 'marble' },
-    { name: 'concrete', label: 'ite Concrete', color: '#808080', pattern: 'concrete' },
+    { name: 'wood', label: 'Wood', color: '#8B4513' },
+    { name: 'tile', label: 'Tile', color: '#b0c4de' },
+    { name: 'carpet', label: 'Carpet', color: '#696969' },
+    { name: 'marble', label: 'Marble', color: '#f0f0f0' },
+    { name: 'concrete', label: 'Concrete', color: '#808080' },
+  ]
+
+  const furnitureItems = [
+    { type: 'sofa', label: 'Sofa', width: 80, height: 35, color: '#4a6fa5' },
+    { type: 'bed', label: 'Bed', width: 70, height: 90, color: '#8b5a2b' },
+    { type: 'table', label: 'Table', width: 60, height: 40, color: '#deb887' },
+    { type: 'chair', label: 'Chair', width: 25, height: 25, color: '#cd853f' },
+    { type: 'desk', label: 'Desk', width: 60, height: 30, color: '#a0522d' },
+    { type: 'wardrobe', label: 'Wardrobe', width: 50, height: 25, color: '#8b4513' },
+    { type: 'tv', label: 'TV Stand', width: 60, height: 20, color: '#2f2f2f' },
+    { type: 'bathtub', label: 'Bathtub', width: 70, height: 35, color: '#e0e0e0' },
+    { type: 'toilet', label: 'Toilet', width: 25, height: 30, color: '#f5f5f5' },
+    { type: 'sink', label: 'Sink', width: 30, height: 25, color: '#d3d3d3' },
+    { type: 'stove', label: 'Stove', width: 35, height: 30, color: '#1a1a1a' },
+    { type: 'fridge', label: 'Fridge', width: 35, height: 35, color: '#c0c0c0' },
   ]
 
   const getSelectedRoomStyle = () => {
@@ -53,11 +73,9 @@ function App() {
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     
-    // Clear canvas
     ctx.fillStyle = '#1a1a2e'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     
-    // Draw grid
     ctx.strokeStyle = '#2a2a4e'
     ctx.lineWidth = 1
     for (let x = 0; x <= canvas.width; x += 50) {
@@ -73,16 +91,13 @@ function App() {
       ctx.stroke()
     }
     
-    // Draw saved rooms
     rooms.forEach((room, index) => {
-      // Draw floor pattern
       const floorType = floorTypes.find(f => f.name === room.floorType) || floorTypes[0]
       ctx.fillStyle = floorType.color
       ctx.globalAlpha = 0.5
       ctx.fillRect(room.x, room.y, room.width, room.height)
       ctx.globalAlpha = 1.0
 
-      // Draw floor pattern overlay
       if (room.floorType === 'wood') {
         ctx.strokeStyle = '#5D3A1A'
         ctx.lineWidth = 1
@@ -109,40 +124,55 @@ function App() {
         }
       }
       
-      // Draw wall color border (thick)
       ctx.strokeStyle = room.wallColor || '#ffffff'
       ctx.lineWidth = 6
       ctx.strokeRect(room.x + 3, room.y + 3, room.width - 6, room.height - 6)
 
-      // Draw room type border
       const roomStyle = roomTypes.find(r => r.name === room.type) || roomTypes[0]
       ctx.strokeStyle = selectedRoomIndex === index ? '#ffff00' : roomStyle.border
       ctx.lineWidth = 2
       ctx.strokeRect(room.x, room.y, room.width, room.height)
       
-      // Draw room name
       ctx.fillStyle = '#ffffff'
       ctx.font = 'bold 14px Arial'
       ctx.fillText(room.type, room.x + 8, room.y + 22)
       
-      // Draw dimensions
       ctx.font = '12px Arial'
       ctx.fillStyle = '#cccccc'
       const widthM = (room.width / 50).toFixed(1)
       const heightM = (room.height / 50).toFixed(1)
-      ctx.fillText(`${widthM}m × ${heightM}m`, room.x + 8, room.y + 40)
-      
-      // Draw area
-      const area = ((room.width / 50) * (room.height / 50)).toFixed(1)
-      ctx.fillText(`${area} m²`, room.x + 8, room.y + 56)
-
-      // Show floor type
-      const floorLabel = floorTypes.find(f => f.name === room.floorType)?.label || '🪵 Wood'
-      ctx.fillText(floorLabel, room.x + 8, room.y + 72)
+      ctx.fillText(widthM + 'm x ' + heightM + 'm', room.x + 8, room.y + 40)
     })
     
-    // Draw current room being drawn
-    if (currentRoom) {
+    furniture.forEach((item, index) => {
+      const furnitureType = furnitureItems.find(f => f.type === item.type)
+      
+      ctx.fillStyle = furnitureType?.color || '#666'
+      ctx.fillRect(item.x, item.y, item.width, item.height)
+      
+      ctx.strokeStyle = selectedFurnitureIndex === index ? '#ffff00' : '#333'
+      ctx.lineWidth = selectedFurnitureIndex === index ? 3 : 2
+      ctx.strokeRect(item.x, item.y, item.width, item.height)
+      
+      ctx.fillStyle = '#fff'
+      ctx.font = '11px Arial'
+      ctx.textAlign = 'center'
+      ctx.fillText(furnitureType?.label || '', item.x + item.width/2, item.y + item.height/2 + 4)
+      ctx.textAlign = 'left'
+    })
+
+    if (draggingFurniture && !isDraggingExisting) {
+      const furnitureType = furnitureItems.find(f => f.type === draggingFurniture.type)
+      ctx.globalAlpha = 0.6
+      ctx.fillStyle = furnitureType?.color || '#666'
+      ctx.fillRect(draggingFurniture.x, draggingFurniture.y, draggingFurniture.width, draggingFurniture.height)
+      ctx.strokeStyle = '#fff'
+      ctx.lineWidth = 2
+      ctx.strokeRect(draggingFurniture.x, draggingFurniture.y, draggingFurniture.width, draggingFurniture.height)
+      ctx.globalAlpha = 1.0
+    }
+    
+    if (currentRoom && mode === 'room') {
       const style = getSelectedRoomStyle()
       const floorType = floorTypes.find(f => f.name === selectedFloorType) || floorTypes[0]
       
@@ -159,17 +189,16 @@ function App() {
       ctx.lineWidth = 2
       ctx.strokeRect(currentRoom.x, currentRoom.y, currentRoom.width, currentRoom.height)
       
-      // Show live dimensions
       ctx.fillStyle = '#ffffff'
       ctx.font = 'bold 16px Arial'
       const widthM = (Math.abs(currentRoom.width) / 50).toFixed(1)
       const heightM = (Math.abs(currentRoom.height) / 50).toFixed(1)
       const area = (widthM * heightM).toFixed(1)
-      ctx.fillText(`${selectedRoomType}: ${widthM}m × ${heightM}m (${area} m²)`, 
+      ctx.fillText(selectedRoomType + ': ' + widthM + 'm x ' + heightM + 'm (' + area + ' m2)', 
         Math.min(currentRoom.x, currentRoom.x + currentRoom.width) + 5, 
         Math.min(currentRoom.y, currentRoom.y + currentRoom.height) - 10)
     }
-  }, [rooms, currentRoom, selectedRoomType, viewMode, selectedRoomIndex, selectedWallColor, selectedFloorType])
+  }, [rooms, furniture, currentRoom, selectedRoomType, viewMode, selectedRoomIndex, selectedFurnitureIndex, selectedWallColor, selectedFloorType, draggingFurniture, isDraggingExisting, mode])
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current
@@ -177,30 +206,71 @@ function App() {
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
-    // Check if clicking on existing room
+    const clickedFurnitureIndex = furniture.findIndex(item => 
+      x >= item.x && x <= item.x + item.width &&
+      y >= item.y && y <= item.y + item.height
+    )
+
+    if (clickedFurnitureIndex !== -1) {
+      setSelectedFurnitureIndex(clickedFurnitureIndex)
+      setSelectedRoomIndex(null)
+      setIsDraggingExisting(true)
+      setDraggingFurniture({
+        ...furniture[clickedFurnitureIndex],
+        offsetX: x - furniture[clickedFurnitureIndex].x,
+        offsetY: y - furniture[clickedFurnitureIndex].y
+      })
+      return
+    }
+
     const clickedRoomIndex = rooms.findIndex(room => 
       x >= room.x && x <= room.x + room.width &&
       y >= room.y && y <= room.y + room.height
     )
 
-    if (clickedRoomIndex !== -1) {
+    if (clickedRoomIndex !== -1 && mode === 'room') {
       setSelectedRoomIndex(clickedRoomIndex)
+      setSelectedFurnitureIndex(null)
       return
     }
 
     setSelectedRoomIndex(null)
-    setIsDrawing(true)
-    setStartPos({ x, y })
-    setCurrentRoom({ x, y, width: 0, height: 0 })
+    setSelectedFurnitureIndex(null)
+
+    if (mode === 'room') {
+      setIsDrawing(true)
+      setStartPos({ x, y })
+      setCurrentRoom({ x, y, width: 0, height: 0 })
+    }
   }
 
   const handleMouseMove = (e) => {
-    if (!isDrawing) return
-    
     const canvas = canvasRef.current
     const rect = canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
+
+    if (isDraggingExisting && draggingFurniture) {
+      const updatedFurniture = [...furniture]
+      updatedFurniture[selectedFurnitureIndex] = {
+        ...updatedFurniture[selectedFurnitureIndex],
+        x: x - draggingFurniture.offsetX,
+        y: y - draggingFurniture.offsetY
+      }
+      setFurniture(updatedFurniture)
+      return
+    }
+
+    if (draggingFurniture && !isDraggingExisting) {
+      setDraggingFurniture({
+        ...draggingFurniture,
+        x: x - draggingFurniture.width / 2,
+        y: y - draggingFurniture.height / 2
+      })
+      return
+    }
+
+    if (!isDrawing || mode !== 'room') return
     
     setCurrentRoom({
       x: startPos.x,
@@ -210,8 +280,33 @@ function App() {
     })
   }
 
-  const handleMouseUp = () => {
-    if (currentRoom && (Math.abs(currentRoom.width) > 20 && Math.abs(currentRoom.height) > 20)) {
+  const handleMouseUp = (e) => {
+    const canvas = canvasRef.current
+    const rect = canvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    if (isDraggingExisting) {
+      setIsDraggingExisting(false)
+      setDraggingFurniture(null)
+      return
+    }
+
+    if (draggingFurniture && !isDraggingExisting) {
+      const newFurniture = {
+        type: draggingFurniture.type,
+        x: x - draggingFurniture.width / 2,
+        y: y - draggingFurniture.height / 2,
+        width: draggingFurniture.width,
+        height: draggingFurniture.height,
+        rotation: 0
+      }
+      setFurniture([...furniture, newFurniture])
+      setDraggingFurniture(null)
+      return
+    }
+
+    if (currentRoom && mode === 'room' && (Math.abs(currentRoom.width) > 20 && Math.abs(currentRoom.height) > 20)) {
       const normalizedRoom = {
         x: currentRoom.width < 0 ? currentRoom.x + currentRoom.width : currentRoom.x,
         y: currentRoom.height < 0 ? currentRoom.y + currentRoom.height : currentRoom.y,
@@ -225,6 +320,16 @@ function App() {
     }
     setIsDrawing(false)
     setCurrentRoom(null)
+  }
+
+  const handleFurnitureDragStart = (item) => {
+    setDraggingFurniture({
+      type: item.type,
+      width: item.width,
+      height: item.height,
+      x: 0,
+      y: 0
+    })
   }
 
   const updateSelectedRoom = (property, value) => {
@@ -243,14 +348,40 @@ function App() {
     setSelectedRoomIndex(null)
   }
 
+  const deleteSelectedFurniture = () => {
+    if (selectedFurnitureIndex === null) return
+    setFurniture(furniture.filter((_, index) => index !== selectedFurnitureIndex))
+    setSelectedFurnitureIndex(null)
+  }
+
+  const rotateFurniture = () => {
+    if (selectedFurnitureIndex === null) return
+    const updatedFurniture = [...furniture]
+    const item = updatedFurniture[selectedFurnitureIndex]
+    updatedFurniture[selectedFurnitureIndex] = {
+      ...item,
+      width: item.height,
+      height: item.width,
+      rotation: (item.rotation || 0) + 90
+    }
+    setFurniture(updatedFurniture)
+  }
+
   const clearCanvas = () => {
     setRooms([])
+    setFurniture([])
     setSelectedRoomIndex(null)
+    setSelectedFurnitureIndex(null)
   }
 
   const undoLast = () => {
-    setRooms(rooms.slice(0, -1))
+    if (furniture.length > 0) {
+      setFurniture(furniture.slice(0, -1))
+    } else if (rooms.length > 0) {
+      setRooms(rooms.slice(0, -1))
+    }
     setSelectedRoomIndex(null)
+    setSelectedFurnitureIndex(null)
   }
 
   const totalArea = rooms.reduce((sum, room) => {
@@ -260,104 +391,147 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>🏠 ChalsHomeDesign</h1>
-        <p>Select room type → Choose colors → Click and drag to draw</p>
+        <h1>ChalsHomeDesign</h1>
+        <p>Draw rooms - Add furniture - See in 3D</p>
       </header>
       
-      <div className="toolbar">
-        <div className="toolbar-section">
-          <label>Room Type:</label>
-          <div className="room-selector">
-            {roomTypes.map(room => (
-              <button
-                key={room.name}
-                className={`room-btn ${selectedRoomType === room.name ? 'active' : ''}`}
-                style={{ 
-                  borderColor: room.border,
-                  backgroundColor: selectedRoomType === room.name ? room.color : 'transparent'
-                }}
-                onClick={() => setSelectedRoomType(room.name)}
-                disabled={viewMode === '3d'}
-              >
-                {room.name}
-              </button>
-            ))}
-          </div>
-        </div>
+      <div className="mode-toggle">
+        <button 
+          className={mode === 'room' ? 'active' : ''} 
+          onClick={() => setMode('room')}
+          disabled={viewMode === '3d'}
+        >
+          Draw Rooms
+        </button>
+        <button 
+          className={mode === 'furniture' ? 'active' : ''} 
+          onClick={() => setMode('furniture')}
+          disabled={viewMode === '3d'}
+        >
+          Add Furniture
+        </button>
       </div>
 
-      <div className="toolbar secondary">
-        <div className="toolbar-section">
-          <label>Wall Color:</label>
-          <div className="color-picker">
-            {wallColors.map(wc => (
-              <button
-                key={wc.color}
-                className={`color-btn ${selectedWallColor === wc.color ? 'active' : ''}`}
-                style={{ backgroundColor: wc.color }}
-                onClick={() => {
-                  setSelectedWallColor(wc.color)
-                  if (selectedRoomIndex !== null) {
-                    updateSelectedRoom('wallColor', wc.color)
-                  }
-                }}
-                title={wc.name}
-                disabled={viewMode === '3d'}
-              />
-            ))}
+      {mode === 'room' && viewMode === '2d' && (
+        <>
+          <div className="toolbar">
+            <div className="toolbar-section">
+              <label>Room Type:</label>
+              <div className="room-selector">
+                {roomTypes.map(room => (
+                  <button
+                    key={room.name}
+                    className={'room-btn ' + (selectedRoomType === room.name ? 'active' : '')}
+                    style={{ 
+                      borderColor: room.border,
+                      backgroundColor: selectedRoomType === room.name ? room.color : 'transparent'
+                    }}
+                    onClick={() => setSelectedRoomType(room.name)}
+                  >
+                    {room.name}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="toolbar-section">
-          <label>Floor:</label>
-          <div className="floor-picker">
-            {floorTypes.map(ft => (
-              <button
-                key={ft.name}
-                className={`floor-btn ${selectedFloorType === ft.name ? 'active' : ''}`}
-                style={{ backgroundColor: ft.color }}
-                onClick={() => {
-                  setSelectedFloorType(ft.name)
-                  if (selectedRoomIndex !== null) {
-                    updateSelectedRoom('floorType', ft.name)
-                  }
-                }}
-                disabled={viewMode === '3d'}
+          <div className="toolbar secondary">
+            <div className="toolbar-section">
+              <label>Wall Color:</label>
+              <div className="color-picker">
+                {wallColors.map(wc => (
+                  <button
+                    key={wc.color}
+                    className={'color-btn ' + (selectedWallColor === wc.color ? 'active' : '')}
+                    style={{ backgroundColor: wc.color }}
+                    onClick={() => {
+                      setSelectedWallColor(wc.color)
+                      if (selectedRoomIndex !== null) {
+                        updateSelectedRoom('wallColor', wc.color)
+                      }
+                    }}
+                    title={wc.name}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="toolbar-section">
+              <label>Floor:</label>
+              <div className="floor-picker">
+                {floorTypes.map(ft => (
+                  <button
+                    key={ft.name}
+                    className={'floor-btn ' + (selectedFloorType === ft.name ? 'active' : '')}
+                    style={{ backgroundColor: ft.color }}
+                    onClick={() => {
+                      setSelectedFloorType(ft.name)
+                      if (selectedRoomIndex !== null) {
+                        updateSelectedRoom('floorType', ft.name)
+                      }
+                    }}
+                  >
+                    {ft.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {mode === 'furniture' && viewMode === '2d' && (
+        <div className="furniture-panel">
+          <label>Drag furniture to canvas:</label>
+          <div className="furniture-items">
+            {furnitureItems.map(item => (
+              <div
+                key={item.type}
+                className="furniture-item"
+                draggable
+                onDragStart={() => handleFurnitureDragStart(item)}
+                onMouseDown={() => handleFurnitureDragStart(item)}
+                style={{ backgroundColor: item.color }}
               >
-                {ft.label}
-              </button>
+                {item.label}
+              </div>
             ))}
           </div>
         </div>
-
-        <div className="actions">
-          {selectedRoomIndex !== null && (
-            <button onClick={deleteSelectedRoom} className="delete-btn">🗑️ Delete Room</button>
-          )}
-          <button onClick={undoLast} disabled={rooms.length === 0 || viewMode === '3d'}>↩️ Undo</button>
-          <button onClick={clearCanvas} className="clear-btn" disabled={viewMode === '3d'}>🗑️ Clear All</button>
-        </div>
-      </div>
+      )}
 
       <div className="stats">
         <span>Rooms: <strong>{rooms.length}</strong></span>
-        <span>Total Area: <strong>{totalArea} m²</strong></span>
-        {selectedRoomIndex !== null && (
-          <span className="selected-info">✏️ Editing: <strong>{rooms[selectedRoomIndex]?.type}</strong></span>
-        )}
+        <span>Furniture: <strong>{furniture.length}</strong></span>
+        <span>Total Area: <strong>{totalArea} m2</strong></span>
+        
+        <div className="actions-bar">
+          {selectedRoomIndex !== null && (
+            <button onClick={deleteSelectedRoom} className="delete-btn">Delete Room</button>
+          )}
+          {selectedFurnitureIndex !== null && (
+            <>
+              <button onClick={rotateFurniture} className="rotate-btn">Rotate</button>
+              <button onClick={deleteSelectedFurniture} className="delete-btn">Delete</button>
+            </>
+          )}
+          <button onClick={undoLast} disabled={rooms.length === 0 && furniture.length === 0}>Undo</button>
+          <button onClick={clearCanvas} className="clear-btn">Clear All</button>
+        </div>
+
         <div className="view-toggle">
           <button 
             className={viewMode === '2d' ? 'active' : ''} 
             onClick={() => setViewMode('2d')}
           >
-            📐 2D View
+            2D View
           </button>
           <button 
             className={viewMode === '3d' ? 'active' : ''} 
             onClick={() => setViewMode('3d')}
             disabled={rooms.length === 0}
           >
-            🎮 3D View
+            3D View
           </button>
         </div>
       </div>
@@ -375,19 +549,19 @@ function App() {
             onMouseLeave={handleMouseUp}
           />
         ) : (
-          <ThreeScene rooms={rooms} />
+          <ThreeScene rooms={rooms} furniture={furniture} furnitureItems={furnitureItems} />
         )}
       </main>
 
-      {viewMode === '2d' && selectedRoomIndex !== null && (
+      {viewMode === '2d' && mode === 'furniture' && (
         <div className="edit-hint">
-          💡 Click a room to select it, then change wall color or floor type above
+          Click and drag furniture items onto the canvas. Click placed furniture to select and move it.
         </div>
       )}
 
       {viewMode === '3d' && (
         <div className="controls-hint">
-          <p>🖱️ Left click + drag to rotate • Scroll to zoom • Right click + drag to pan</p>
+          <p>Left click + drag to rotate - Scroll to zoom - Right click + drag to pan</p>
         </div>
       )}
     </div>

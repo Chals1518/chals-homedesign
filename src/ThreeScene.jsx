@@ -2,17 +2,15 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 
-function ThreeScene({ rooms }) {
+function ThreeScene({ rooms, furniture, furnitureItems }) {
   const containerRef = useRef(null)
 
   useEffect(() => {
     if (!containerRef.current) return
 
-    // Scene setup
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(0x1a1a2e)
 
-    // Camera
     const camera = new THREE.PerspectiveCamera(
       60,
       containerRef.current.clientWidth / containerRef.current.clientHeight,
@@ -22,13 +20,11 @@ function ThreeScene({ rooms }) {
     camera.position.set(15, 15, 15)
     camera.lookAt(0, 0, 0)
 
-    // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight)
     renderer.shadowMap.enabled = true
     containerRef.current.appendChild(renderer.domElement)
 
-    // Controls
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.dampingFactor = 0.05
@@ -45,21 +41,16 @@ function ThreeScene({ rooms }) {
 
     // Base floor
     const floorGeometry = new THREE.PlaneGeometry(50, 50)
-    const floorMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0x2a2a4e,
-      roughness: 0.8
-    })
+    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x2a2a4e, roughness: 0.8 })
     const floor = new THREE.Mesh(floorGeometry, floorMaterial)
     floor.rotation.x = -Math.PI / 2
     floor.position.y = -0.01
     floor.receiveShadow = true
     scene.add(floor)
 
-    // Grid
     const grid = new THREE.GridHelper(50, 50, 0x444444, 0x333333)
     scene.add(grid)
 
-    // Floor colors
     const floorColors = {
       'wood': 0x8B4513,
       'tile': 0xb0c4de,
@@ -68,7 +59,7 @@ function ThreeScene({ rooms }) {
       'concrete': 0x808080
     }
 
-    // Create 3D rooms
+    // Create rooms
     rooms.forEach(room => {
       const width = room.width / 50
       const depth = room.height / 50
@@ -84,43 +75,14 @@ function ThreeScene({ rooms }) {
       const roomFloorGeo = new THREE.PlaneGeometry(width, depth)
       const roomFloorMat = new THREE.MeshStandardMaterial({ 
         color: floorColor,
-        roughness: room.floorType === 'marble' ? 0.2 : 0.8,
-        metalness: room.floorType === 'marble' ? 0.1 : 0
+        roughness: room.floorType === 'marble' ? 0.2 : 0.8
       })
       const roomFloor = new THREE.Mesh(roomFloorGeo, roomFloorMat)
       roomFloor.rotation.x = -Math.PI / 2
       roomFloor.position.set(x, 0.01, z)
-      roomFloor.receiveShadow = true
       scene.add(roomFloor)
 
-      // Floor pattern for wood
-      if (room.floorType === 'wood') {
-        for (let i = -depth/2 + 0.1; i < depth/2; i += 0.3) {
-          const plankGeo = new THREE.PlaneGeometry(width - 0.02, 0.02)
-          const plankMat = new THREE.MeshStandardMaterial({ color: 0x5D3A1A })
-          const plank = new THREE.Mesh(plankGeo, plankMat)
-          plank.rotation.x = -Math.PI / 2
-          plank.position.set(x, 0.02, z + i)
-          scene.add(plank)
-        }
-      }
-
-      // Floor pattern for tile
-      if (room.floorType === 'tile') {
-        const tileSize = 0.5
-        for (let tx = -width/2 + tileSize/2; tx < width/2; tx += tileSize) {
-          for (let tz = -depth/2 + tileSize/2; tz < depth/2; tz += tileSize) {
-            const groutGeo = new THREE.PlaneGeometry(0.02, tileSize)
-            const groutMat = new THREE.MeshStandardMaterial({ color: 0x8a9aae })
-            const groutV = new THREE.Mesh(groutGeo, groutMat)
-            groutV.rotation.x = -Math.PI / 2
-            groutV.position.set(x + tx, 0.02, z + tz)
-            scene.add(groutV)
-          }
-        }
-      }
-
-      // Wall material with room's wall color
+      // Walls
       const wallMaterial = new THREE.MeshStandardMaterial({
         color: wallColor,
         roughness: 0.9,
@@ -134,14 +96,12 @@ function ThreeScene({ rooms }) {
       const frontWall = new THREE.Mesh(frontWallGeo, wallMaterial)
       frontWall.position.set(x, height / 2, z + depth / 2)
       frontWall.castShadow = true
-      frontWall.receiveShadow = true
       scene.add(frontWall)
 
       // Back wall
       const backWall = new THREE.Mesh(frontWallGeo, wallMaterial)
       backWall.position.set(x, height / 2, z - depth / 2)
       backWall.castShadow = true
-      backWall.receiveShadow = true
       scene.add(backWall)
 
       // Left wall
@@ -149,14 +109,12 @@ function ThreeScene({ rooms }) {
       const leftWall = new THREE.Mesh(sideWallGeo, wallMaterial)
       leftWall.position.set(x - width / 2, height / 2, z)
       leftWall.castShadow = true
-      leftWall.receiveShadow = true
       scene.add(leftWall)
 
       // Right wall
       const rightWall = new THREE.Mesh(sideWallGeo, wallMaterial)
       rightWall.position.set(x + width / 2, height / 2, z)
       rightWall.castShadow = true
-      rightWall.receiveShadow = true
       scene.add(rightWall)
 
       // Room label
@@ -177,7 +135,101 @@ function ThreeScene({ rooms }) {
       scene.add(label)
     })
 
-    // Animation loop
+    // Create 3D furniture
+    furniture.forEach(item => {
+      const furnitureType = furnitureItems.find(f => f.type === item.type)
+      const width = item.width / 50
+      const depth = item.height / 50
+      const x = (item.x / 50) - 9 + (width / 2)
+      const z = (item.y / 50) - 6 + (depth / 2)
+      
+      let furnitureHeight = 0.4
+      let yPos = furnitureHeight / 2
+
+      // Adjust heights based on furniture type
+      switch(item.type) {
+        case 'sofa':
+          furnitureHeight = 0.5
+          yPos = furnitureHeight / 2
+          break
+        case 'bed':
+          furnitureHeight = 0.5
+          yPos = furnitureHeight / 2
+          break
+        case 'table':
+          furnitureHeight = 0.75
+          yPos = furnitureHeight / 2
+          break
+        case 'chair':
+          furnitureHeight = 0.85
+          yPos = furnitureHeight / 2
+          break
+        case 'desk':
+          furnitureHeight = 0.75
+          yPos = furnitureHeight / 2
+          break
+        case 'wardrobe':
+          furnitureHeight = 2.0
+          yPos = furnitureHeight / 2
+          break
+        case 'tv':
+          furnitureHeight = 0.5
+          yPos = furnitureHeight / 2
+          break
+        case 'bathtub':
+          furnitureHeight = 0.6
+          yPos = furnitureHeight / 2
+          break
+        case 'toilet':
+          furnitureHeight = 0.7
+          yPos = furnitureHeight / 2
+          break
+        case 'sink':
+          furnitureHeight = 0.85
+          yPos = furnitureHeight / 2
+          break
+        case 'stove':
+          furnitureHeight = 0.9
+          yPos = furnitureHeight / 2
+          break
+        case 'fridge':
+          furnitureHeight = 1.8
+          yPos = furnitureHeight / 2
+          break
+        default:
+          furnitureHeight = 0.5
+          yPos = furnitureHeight / 2
+      }
+
+      const geometry = new THREE.BoxGeometry(width, furnitureHeight, depth)
+      const material = new THREE.MeshStandardMaterial({ 
+        color: furnitureType?.color || 0x666666,
+        roughness: 0.7
+      })
+      const mesh = new THREE.Mesh(geometry, material)
+      mesh.position.set(x, yPos, z)
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      scene.add(mesh)
+
+      // Furniture label
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d')
+      canvas.width = 128
+      canvas.height = 32
+      context.fillStyle = '#ffffff'
+      context.font = 'bold 16px Arial'
+      context.textAlign = 'center'
+      context.fillText(furnitureType?.label?.split(' ')[0] || '', 64, 22)
+      
+      const texture = new THREE.CanvasTexture(canvas)
+      const labelMaterial = new THREE.SpriteMaterial({ map: texture })
+      const label = new THREE.Sprite(labelMaterial)
+      label.position.set(x, furnitureHeight + 0.3, z)
+      label.scale.set(1, 0.25, 1)
+      scene.add(label)
+    })
+
     const animate = () => {
       requestAnimationFrame(animate)
       controls.update()
@@ -185,7 +237,6 @@ function ThreeScene({ rooms }) {
     }
     animate()
 
-    // Handle resize
     const handleResize = () => {
       if (!containerRef.current) return
       camera.aspect = containerRef.current.clientWidth / containerRef.current.clientHeight
@@ -194,7 +245,6 @@ function ThreeScene({ rooms }) {
     }
     window.addEventListener('resize', handleResize)
 
-    // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize)
       if (containerRef.current && renderer.domElement) {
@@ -202,7 +252,7 @@ function ThreeScene({ rooms }) {
       }
       renderer.dispose()
     }
-  }, [rooms])
+  }, [rooms, furniture, furnitureItems])
 
   return (
     <div 
