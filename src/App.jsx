@@ -8,6 +8,8 @@ function App() {
   const [startPos, setStartPos] = useState({ x: 0, y: 0 })
   const [rooms, setRooms] = useState([])
   const [furniture, setFurniture] = useState([])
+  const [doors, setDoors] = useState([])
+  const [windows, setWindows] = useState([])
   const [currentRoom, setCurrentRoom] = useState(null)
   const [selectedRoomType, setSelectedRoomType] = useState('Living Room')
   const [selectedWallColor, setSelectedWallColor] = useState('#ffffff')
@@ -15,6 +17,8 @@ function App() {
   const [viewMode, setViewMode] = useState('2d')
   const [selectedRoomIndex, setSelectedRoomIndex] = useState(null)
   const [selectedFurnitureIndex, setSelectedFurnitureIndex] = useState(null)
+  const [selectedDoorIndex, setSelectedDoorIndex] = useState(null)
+  const [selectedWindowIndex, setSelectedWindowIndex] = useState(null)
   const [draggingFurniture, setDraggingFurniture] = useState(null)
   const [isDraggingExisting, setIsDraggingExisting] = useState(false)
   const [mode, setMode] = useState('room')
@@ -63,6 +67,11 @@ function App() {
     { type: 'fridge', label: 'Fridge', width: 35, height: 35, color: '#c0c0c0', price: 799 },
   ]
 
+  const doorWindowItems = [
+    { type: 'door', label: 'Door', width: 40, height: 8, color: '#8B4513', price: 150 },
+    { type: 'window', label: 'Window', width: 50, height: 6, color: '#87CEEB', price: 200 },
+  ]
+
   const getSelectedRoomStyle = () => {
     return roomTypes.find(r => r.name === selectedRoomType) || roomTypes[0]
   }
@@ -72,9 +81,11 @@ function App() {
     let flooringCost = 0
     let paintCost = 0
     let furnitureCost = 0
+    let doorWindowCost = 0
     const flooringDetails = []
     const paintDetails = []
     const furnitureDetails = []
+    const doorWindowDetails = []
 
     rooms.forEach(room => {
       const area = (room.width / 50) * (room.height / 50)
@@ -122,11 +133,36 @@ function App() {
       }
     })
 
+    // Calculate doors cost
+    doors.forEach(() => {
+      doorWindowCost += 150
+      const existing = doorWindowDetails.find(d => d.type === 'Door')
+      if (existing) {
+        existing.quantity += 1
+        existing.cost = existing.quantity * 150
+      } else {
+        doorWindowDetails.push({ type: 'Door', quantity: 1, unitPrice: 150, cost: 150 })
+      }
+    })
+
+    // Calculate windows cost
+    windows.forEach(() => {
+      doorWindowCost += 200
+      const existing = doorWindowDetails.find(d => d.type === 'Window')
+      if (existing) {
+        existing.quantity += 1
+        existing.cost = existing.quantity * 200
+      } else {
+        doorWindowDetails.push({ type: 'Window', quantity: 1, unitPrice: 200, cost: 200 })
+      }
+    })
+
     return {
       flooring: { total: flooringCost, details: flooringDetails },
       paint: { total: paintCost, details: paintDetails },
       furniture: { total: furnitureCost, details: furnitureDetails },
-      grandTotal: flooringCost + paintCost + furnitureCost
+      doorWindow: { total: doorWindowCost, details: doorWindowDetails },
+      grandTotal: flooringCost + paintCost + furnitureCost + doorWindowCost
     }
   }
 
@@ -209,7 +245,52 @@ function App() {
       const heightM = (room.height / 50).toFixed(1)
       ctx.fillText(widthM + 'm x ' + heightM + 'm', room.x + 8, room.y + 40)
     })
+
+    // Draw doors
+    doors.forEach((door, index) => {
+      ctx.fillStyle = selectedDoorIndex === index ? '#FFD700' : '#8B4513'
+      ctx.fillRect(door.x, door.y, door.width, door.height)
+      ctx.strokeStyle = selectedDoorIndex === index ? '#FFD700' : '#5D3A1A'
+      ctx.lineWidth = 2
+      ctx.strokeRect(door.x, door.y, door.width, door.height)
+      
+      // Door swing arc
+      ctx.beginPath()
+      ctx.strokeStyle = '#8B4513'
+      ctx.lineWidth = 1
+      if (door.width > door.height) {
+        ctx.arc(door.x, door.y + door.height / 2, 20, -Math.PI / 2, 0)
+      } else {
+        ctx.arc(door.x + door.width / 2, door.y, 20, 0, Math.PI / 2)
+      }
+      ctx.stroke()
+    })
+
+    // Draw windows
+    windows.forEach((window, index) => {
+      ctx.fillStyle = selectedWindowIndex === index ? '#FFD700' : '#87CEEB'
+      ctx.fillRect(window.x, window.y, window.width, window.height)
+      ctx.strokeStyle = selectedWindowIndex === index ? '#FFD700' : '#4682B4'
+      ctx.lineWidth = 2
+      ctx.strokeRect(window.x, window.y, window.width, window.height)
+      
+      // Window panes
+      ctx.strokeStyle = '#4682B4'
+      ctx.lineWidth = 1
+      if (window.width > window.height) {
+        ctx.beginPath()
+        ctx.moveTo(window.x + window.width / 2, window.y)
+        ctx.lineTo(window.x + window.width / 2, window.y + window.height)
+        ctx.stroke()
+      } else {
+        ctx.beginPath()
+        ctx.moveTo(window.x, window.y + window.height / 2)
+        ctx.lineTo(window.x + window.width, window.y + window.height / 2)
+        ctx.stroke()
+      }
+    })
     
+    // Draw furniture
     furniture.forEach((item, index) => {
       const furnitureType = furnitureItems.find(f => f.type === item.type)
       
@@ -264,7 +345,31 @@ function App() {
         Math.min(currentRoom.x, currentRoom.x + currentRoom.width) + 5, 
         Math.min(currentRoom.y, currentRoom.y + currentRoom.height) - 10)
     }
-  }, [rooms, furniture, currentRoom, selectedRoomType, viewMode, selectedRoomIndex, selectedFurnitureIndex, selectedWallColor, selectedFloorType, draggingFurniture, isDraggingExisting, mode])
+  }, [rooms, furniture, doors, windows, currentRoom, selectedRoomType, viewMode, selectedRoomIndex, selectedFurnitureIndex, selectedDoorIndex, selectedWindowIndex, selectedWallColor, selectedFloorType, draggingFurniture, isDraggingExisting, mode])
+
+  const findWallAtPosition = (x, y) => {
+    const threshold = 10
+    for (let i = 0; i < rooms.length; i++) {
+      const room = rooms[i]
+      // Top wall
+      if (y >= room.y - threshold && y <= room.y + threshold && x >= room.x && x <= room.x + room.width) {
+        return { roomIndex: i, wall: 'top', x: x - 20, y: room.y - 4, width: 40, height: 8 }
+      }
+      // Bottom wall
+      if (y >= room.y + room.height - threshold && y <= room.y + room.height + threshold && x >= room.x && x <= room.x + room.width) {
+        return { roomIndex: i, wall: 'bottom', x: x - 20, y: room.y + room.height - 4, width: 40, height: 8 }
+      }
+      // Left wall
+      if (x >= room.x - threshold && x <= room.x + threshold && y >= room.y && y <= room.y + room.height) {
+        return { roomIndex: i, wall: 'left', x: room.x - 4, y: y - 20, width: 8, height: 40 }
+      }
+      // Right wall
+      if (x >= room.x + room.width - threshold && x <= room.x + room.width + threshold && y >= room.y && y <= room.y + room.height) {
+        return { roomIndex: i, wall: 'right', x: room.x + room.width - 4, y: y - 20, width: 8, height: 40 }
+      }
+    }
+    return null
+  }
 
   const handleMouseDown = (e) => {
     const canvas = canvasRef.current
@@ -272,6 +377,50 @@ function App() {
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
+    // Clear all selections first
+    setSelectedDoorIndex(null)
+    setSelectedWindowIndex(null)
+
+    // Check for door/window placement modes
+    if (mode === 'door' || mode === 'window') {
+      const wallInfo = findWallAtPosition(x, y)
+      if (wallInfo) {
+        if (mode === 'door') {
+          setDoors([...doors, { x: wallInfo.x, y: wallInfo.y, width: wallInfo.width, height: wallInfo.height, wall: wallInfo.wall }])
+        } else {
+          setWindows([...windows, { x: wallInfo.x, y: wallInfo.y, width: wallInfo.width, height: wallInfo.height, wall: wallInfo.wall }])
+        }
+      }
+      return
+    }
+
+    // Check if clicking on door
+    const clickedDoorIndex = doors.findIndex(door => 
+      x >= door.x && x <= door.x + door.width &&
+      y >= door.y && y <= door.y + door.height
+    )
+    if (clickedDoorIndex !== -1) {
+      setSelectedDoorIndex(clickedDoorIndex)
+      setSelectedRoomIndex(null)
+      setSelectedFurnitureIndex(null)
+      setSelectedWindowIndex(null)
+      return
+    }
+
+    // Check if clicking on window
+    const clickedWindowIndex = windows.findIndex(win => 
+      x >= win.x && x <= win.x + win.width &&
+      y >= win.y && y <= win.y + win.height
+    )
+    if (clickedWindowIndex !== -1) {
+      setSelectedWindowIndex(clickedWindowIndex)
+      setSelectedRoomIndex(null)
+      setSelectedFurnitureIndex(null)
+      setSelectedDoorIndex(null)
+      return
+    }
+
+    // Check if clicking on furniture
     const clickedFurnitureIndex = furniture.findIndex(item => 
       x >= item.x && x <= item.x + item.width &&
       y >= item.y && y <= item.y + item.height
@@ -420,6 +569,18 @@ function App() {
     setSelectedFurnitureIndex(null)
   }
 
+  const deleteSelectedDoor = () => {
+    if (selectedDoorIndex === null) return
+    setDoors(doors.filter((_, index) => index !== selectedDoorIndex))
+    setSelectedDoorIndex(null)
+  }
+
+  const deleteSelectedWindow = () => {
+    if (selectedWindowIndex === null) return
+    setWindows(windows.filter((_, index) => index !== selectedWindowIndex))
+    setSelectedWindowIndex(null)
+  }
+
   const rotateFurniture = () => {
     if (selectedFurnitureIndex === null) return
     const updatedFurniture = [...furniture]
@@ -436,18 +597,28 @@ function App() {
   const clearCanvas = () => {
     setRooms([])
     setFurniture([])
+    setDoors([])
+    setWindows([])
     setSelectedRoomIndex(null)
     setSelectedFurnitureIndex(null)
+    setSelectedDoorIndex(null)
+    setSelectedWindowIndex(null)
   }
 
   const undoLast = () => {
-    if (furniture.length > 0) {
+    if (windows.length > 0) {
+      setWindows(windows.slice(0, -1))
+    } else if (doors.length > 0) {
+      setDoors(doors.slice(0, -1))
+    } else if (furniture.length > 0) {
       setFurniture(furniture.slice(0, -1))
     } else if (rooms.length > 0) {
       setRooms(rooms.slice(0, -1))
     }
     setSelectedRoomIndex(null)
     setSelectedFurnitureIndex(null)
+    setSelectedDoorIndex(null)
+    setSelectedWindowIndex(null)
   }
 
   const totalArea = rooms.reduce((sum, room) => {
@@ -458,7 +629,7 @@ function App() {
     <div className="app">
       <header className="header">
         <h1>ChalsHomeDesign</h1>
-        <p>Draw rooms - Add furniture - See in 3D - Calculate Budget</p>
+        <p>Draw rooms - Add doors/windows - Add furniture - See in 3D</p>
       </header>
       
       <div className="mode-toggle">
@@ -468,6 +639,20 @@ function App() {
           disabled={viewMode === '3d'}
         >
           Draw Rooms
+        </button>
+        <button 
+          className={mode === 'door' ? 'active door-mode' : 'door-mode'} 
+          onClick={() => setMode('door')}
+          disabled={viewMode === '3d' || rooms.length === 0}
+        >
+          Add Doors
+        </button>
+        <button 
+          className={mode === 'window' ? 'active window-mode' : 'window-mode'} 
+          onClick={() => setMode('window')}
+          disabled={viewMode === '3d' || rooms.length === 0}
+        >
+          Add Windows
         </button>
         <button 
           className={mode === 'furniture' ? 'active' : ''} 
@@ -480,7 +665,7 @@ function App() {
           className={showBudget ? 'active budget-btn' : 'budget-btn'}
           onClick={() => setShowBudget(!showBudget)}
         >
-          Budget Calculator
+          Budget
         </button>
       </div>
 
@@ -550,6 +735,12 @@ function App() {
             </div>
           </div>
         </>
+      )}
+
+      {(mode === 'door' || mode === 'window') && viewMode === '2d' && !showBudget && (
+        <div className="door-window-hint">
+          Click on any wall to place a {mode}. {mode === 'door' ? '🚪' : '🪟'}
+        </div>
       )}
 
       {mode === 'furniture' && viewMode === '2d' && !showBudget && (
@@ -665,6 +856,34 @@ function App() {
                 </table>
               )}
             </div>
+
+            <div className="budget-section">
+              <h3>Doors & Windows - ${budget.doorWindow.total.toFixed(0)}</h3>
+              {budget.doorWindow.details.length === 0 ? (
+                <p className="no-items">No doors/windows added yet</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Qty</th>
+                      <th>Unit Price</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {budget.doorWindow.details.map((item, i) => (
+                      <tr key={i}>
+                        <td>{item.type}</td>
+                        <td>{item.quantity}</td>
+                        <td>${item.unitPrice}</td>
+                        <td>${item.cost}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
 
           <div className="budget-summary">
@@ -680,6 +899,10 @@ function App() {
               <span>Furniture:</span>
               <span>${budget.furniture.total.toFixed(0)}</span>
             </div>
+            <div className="summary-row">
+              <span>Doors & Windows:</span>
+              <span>${budget.doorWindow.total.toFixed(0)}</span>
+            </div>
             <div className="summary-row total">
               <span>Grand Total:</span>
               <span>${budget.grandTotal.toFixed(0)}</span>
@@ -690,9 +913,11 @@ function App() {
 
       <div className="stats">
         <span>Rooms: <strong>{rooms.length}</strong></span>
+        <span>Doors: <strong>{doors.length}</strong></span>
+        <span>Windows: <strong>{windows.length}</strong></span>
         <span>Furniture: <strong>{furniture.length}</strong></span>
-        <span>Total Area: <strong>{totalArea} m2</strong></span>
-        <span className="budget-preview">Est. Cost: <strong>${budget.grandTotal.toFixed(0)}</strong></span>
+        <span>Area: <strong>{totalArea} m2</strong></span>
+        <span className="budget-preview">Cost: <strong>${budget.grandTotal.toFixed(0)}</strong></span>
         
         <div className="actions-bar">
           {selectedRoomIndex !== null && (
@@ -704,7 +929,13 @@ function App() {
               <button onClick={deleteSelectedFurniture} className="delete-btn">Delete</button>
             </>
           )}
-          <button onClick={undoLast} disabled={rooms.length === 0 && furniture.length === 0}>Undo</button>
+          {selectedDoorIndex !== null && (
+            <button onClick={deleteSelectedDoor} className="delete-btn">Delete Door</button>
+          )}
+          {selectedWindowIndex !== null && (
+            <button onClick={deleteSelectedWindow} className="delete-btn">Delete Window</button>
+          )}
+          <button onClick={undoLast} disabled={rooms.length === 0 && furniture.length === 0 && doors.length === 0 && windows.length === 0}>Undo</button>
           <button onClick={clearCanvas} className="clear-btn">Clear All</button>
         </div>
 
@@ -738,7 +969,7 @@ function App() {
             onMouseLeave={handleMouseUp}
           />
         ) : (
-          <ThreeScene rooms={rooms} furniture={furniture} furnitureItems={furnitureItems} />
+          <ThreeScene rooms={rooms} furniture={furniture} doors={doors} windows={windows} furnitureItems={furnitureItems} />
         )}
       </main>
 

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 
-function ThreeScene({ rooms, furniture, furnitureItems }) {
+function ThreeScene({ rooms, furniture, doors, windows, furnitureItems }) {
   const containerRef = useRef(null)
 
   useEffect(() => {
@@ -135,6 +135,60 @@ function ThreeScene({ rooms, furniture, furnitureItems }) {
       scene.add(label)
     })
 
+    // Create 3D doors
+    doors.forEach(door => {
+      const doorWidth = door.width > door.height ? door.width / 50 : door.height / 50
+      const doorDepth = 0.1
+      const doorHeight = 2.2
+      
+      const x = (door.x / 50) - 9 + (door.width / 100)
+      const z = (door.y / 50) - 6 + (door.height / 100)
+
+      // Door frame
+      const doorGeo = new THREE.BoxGeometry(doorWidth, doorHeight, doorDepth)
+      const doorMat = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.7 })
+      const doorMesh = new THREE.Mesh(doorGeo, doorMat)
+      doorMesh.position.set(x, doorHeight / 2, z)
+      doorMesh.castShadow = true
+      scene.add(doorMesh)
+
+      // Door handle
+      const handleGeo = new THREE.SphereGeometry(0.05, 16, 16)
+      const handleMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.8 })
+      const handle = new THREE.Mesh(handleGeo, handleMat)
+      handle.position.set(x + doorWidth / 3, 1, z + 0.08)
+      scene.add(handle)
+    })
+
+    // Create 3D windows
+    windows.forEach(window => {
+      const windowWidth = window.width > window.height ? window.width / 50 : window.height / 50
+      const windowDepth = 0.08
+      const windowHeight = 1.2
+      
+      const x = (window.x / 50) - 9 + (window.width / 100)
+      const z = (window.y / 50) - 6 + (window.height / 100)
+
+      // Window frame
+      const frameGeo = new THREE.BoxGeometry(windowWidth, windowHeight, windowDepth)
+      const frameMat = new THREE.MeshStandardMaterial({ color: 0x4682B4, roughness: 0.5 })
+      const frame = new THREE.Mesh(frameGeo, frameMat)
+      frame.position.set(x, 1.8, z)
+      scene.add(frame)
+
+      // Window glass
+      const glassGeo = new THREE.BoxGeometry(windowWidth - 0.1, windowHeight - 0.1, 0.02)
+      const glassMat = new THREE.MeshStandardMaterial({ 
+        color: 0x87CEEB, 
+        transparent: true, 
+        opacity: 0.4,
+        roughness: 0.1
+      })
+      const glass = new THREE.Mesh(glassGeo, glassMat)
+      glass.position.set(x, 1.8, z)
+      scene.add(glass)
+    })
+
     // Create 3D furniture
     furniture.forEach(item => {
       const furnitureType = furnitureItems.find(f => f.type === item.type)
@@ -146,60 +200,22 @@ function ThreeScene({ rooms, furniture, furnitureItems }) {
       let furnitureHeight = 0.4
       let yPos = furnitureHeight / 2
 
-      // Adjust heights based on furniture type
       switch(item.type) {
-        case 'sofa':
-          furnitureHeight = 0.5
-          yPos = furnitureHeight / 2
-          break
-        case 'bed':
-          furnitureHeight = 0.5
-          yPos = furnitureHeight / 2
-          break
-        case 'table':
-          furnitureHeight = 0.75
-          yPos = furnitureHeight / 2
-          break
-        case 'chair':
-          furnitureHeight = 0.85
-          yPos = furnitureHeight / 2
-          break
-        case 'desk':
-          furnitureHeight = 0.75
-          yPos = furnitureHeight / 2
-          break
-        case 'wardrobe':
-          furnitureHeight = 2.0
-          yPos = furnitureHeight / 2
-          break
-        case 'tv':
-          furnitureHeight = 0.5
-          yPos = furnitureHeight / 2
-          break
-        case 'bathtub':
-          furnitureHeight = 0.6
-          yPos = furnitureHeight / 2
-          break
-        case 'toilet':
-          furnitureHeight = 0.7
-          yPos = furnitureHeight / 2
-          break
-        case 'sink':
-          furnitureHeight = 0.85
-          yPos = furnitureHeight / 2
-          break
-        case 'stove':
-          furnitureHeight = 0.9
-          yPos = furnitureHeight / 2
-          break
-        case 'fridge':
-          furnitureHeight = 1.8
-          yPos = furnitureHeight / 2
-          break
-        default:
-          furnitureHeight = 0.5
-          yPos = furnitureHeight / 2
+        case 'sofa': furnitureHeight = 0.5; break
+        case 'bed': furnitureHeight = 0.5; break
+        case 'table': furnitureHeight = 0.75; break
+        case 'chair': furnitureHeight = 0.85; break
+        case 'desk': furnitureHeight = 0.75; break
+        case 'wardrobe': furnitureHeight = 2.0; break
+        case 'tv': furnitureHeight = 0.5; break
+        case 'bathtub': furnitureHeight = 0.6; break
+        case 'toilet': furnitureHeight = 0.7; break
+        case 'sink': furnitureHeight = 0.85; break
+        case 'stove': furnitureHeight = 0.9; break
+        case 'fridge': furnitureHeight = 1.8; break
+        default: furnitureHeight = 0.5
       }
+      yPos = furnitureHeight / 2
 
       const geometry = new THREE.BoxGeometry(width, furnitureHeight, depth)
       const material = new THREE.MeshStandardMaterial({ 
@@ -211,23 +227,6 @@ function ThreeScene({ rooms, furniture, furnitureItems }) {
       mesh.castShadow = true
       mesh.receiveShadow = true
       scene.add(mesh)
-
-      // Furniture label
-      const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')
-      canvas.width = 128
-      canvas.height = 32
-      context.fillStyle = '#ffffff'
-      context.font = 'bold 16px Arial'
-      context.textAlign = 'center'
-      context.fillText(furnitureType?.label?.split(' ')[0] || '', 64, 22)
-      
-      const texture = new THREE.CanvasTexture(canvas)
-      const labelMaterial = new THREE.SpriteMaterial({ map: texture })
-      const label = new THREE.Sprite(labelMaterial)
-      label.position.set(x, furnitureHeight + 0.3, z)
-      label.scale.set(1, 0.25, 1)
-      scene.add(label)
     })
 
     const animate = () => {
@@ -252,7 +251,7 @@ function ThreeScene({ rooms, furniture, furnitureItems }) {
       }
       renderer.dispose()
     }
-  }, [rooms, furniture, furnitureItems])
+  }, [rooms, furniture, doors, windows, furnitureItems])
 
   return (
     <div 
