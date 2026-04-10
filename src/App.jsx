@@ -23,6 +23,14 @@ function App() {
   const [isDraggingExisting, setIsDraggingExisting] = useState(false)
   const [mode, setMode] = useState('room')
   const [showBudget, setShowBudget] = useState(false)
+  
+  // Save/Load states
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [showLoadModal, setShowLoadModal] = useState(false)
+  const [saveName, setSaveName] = useState('')
+  const [savedDesigns, setSavedDesigns] = useState([])
+  const [lastSaved, setLastSaved] = useState(null)
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true)
 
   const roomTypes = [
     { name: 'Living Room', color: 'rgba(100, 200, 255, 0.3)', border: '#64c8ff' },
@@ -67,10 +75,110 @@ function App() {
     { type: 'fridge', label: 'Fridge', width: 35, height: 35, color: '#c0c0c0', price: 799 },
   ]
 
-  const doorWindowItems = [
-    { type: 'door', label: 'Door', width: 40, height: 8, color: '#8B4513', price: 150 },
-    { type: 'window', label: 'Window', width: 50, height: 6, color: '#87CEEB', price: 200 },
-  ]
+  // Load saved designs from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('chalsHomeDesigns')
+    if (saved) {
+      setSavedDesigns(JSON.parse(saved))
+    }
+    
+    // Check for auto-saved design
+    const autoSaved = localStorage.getItem('chalsHomeAutoSave')
+    if (autoSaved) {
+      const data = JSON.parse(autoSaved)
+      setLastSaved(data.timestamp)
+    }
+  }, [])
+
+  // Auto-save every 30 seconds
+  useEffect(() => {
+    if (!autoSaveEnabled) return
+    if (rooms.length === 0 && furniture.length === 0) return
+
+    const autoSaveInterval = setInterval(() => {
+      const designData = {
+        rooms,
+        furniture,
+        doors,
+        windows,
+        timestamp: new Date().toISOString()
+      }
+      localStorage.setItem('chalsHomeAutoSave', JSON.stringify(designData))
+      setLastSaved(new Date().toLocaleTimeString())
+    }, 30000) // 30 seconds
+
+    return () => clearInterval(autoSaveInterval)
+  }, [rooms, furniture, doors, windows, autoSaveEnabled])
+
+  // Save design function
+  const saveDesign = () => {
+    if (!saveName.trim()) {
+      alert('Please enter a name for your design')
+      return
+    }
+
+    const designData = {
+      id: Date.now(),
+      name: saveName.trim(),
+      rooms,
+      furniture,
+      doors,
+      windows,
+      timestamp: new Date().toISOString(),
+      totalArea: totalArea,
+      totalCost: budget.grandTotal
+    }
+
+    const updatedDesigns = [...savedDesigns, designData]
+    
+    // Keep only last 10 designs
+    if (updatedDesigns.length > 10) {
+      updatedDesigns.shift()
+    }
+
+    localStorage.setItem('chalsHomeDesigns', JSON.stringify(updatedDesigns))
+    setSavedDesigns(updatedDesigns)
+    setSaveName('')
+    setShowSaveModal(false)
+    setLastSaved(new Date().toLocaleTimeString())
+    alert('Design saved successfully!')
+  }
+
+  // Load design function
+  const loadDesign = (design) => {
+    setRooms(design.rooms || [])
+    setFurniture(design.furniture || [])
+    setDoors(design.doors || [])
+    setWindows(design.windows || [])
+    setShowLoadModal(false)
+    setSelectedRoomIndex(null)
+    setSelectedFurnitureIndex(null)
+    setSelectedDoorIndex(null)
+    setSelectedWindowIndex(null)
+    alert(`Loaded: ${design.name}`)
+  }
+
+  // Load auto-saved design
+  const loadAutoSave = () => {
+    const autoSaved = localStorage.getItem('chalsHomeAutoSave')
+    if (autoSaved) {
+      const data = JSON.parse(autoSaved)
+      setRooms(data.rooms || [])
+      setFurniture(data.furniture || [])
+      setDoors(data.doors || [])
+      setWindows(data.windows || [])
+      setShowLoadModal(false)
+      alert('Auto-saved design restored!')
+    }
+  }
+
+  // Delete saved design
+  const deleteDesign = (id) => {
+    if (!confirm('Delete this design?')) return
+    const updatedDesigns = savedDesigns.filter(d => d.id !== id)
+    localStorage.setItem('chalsHomeDesigns', JSON.stringify(updatedDesigns))
+    setSavedDesigns(updatedDesigns)
+  }
 
   const getSelectedRoomStyle = () => {
     return roomTypes.find(r => r.name === selectedRoomType) || roomTypes[0]
@@ -133,7 +241,6 @@ function App() {
       }
     })
 
-    // Calculate doors cost
     doors.forEach(() => {
       doorWindowCost += 150
       const existing = doorWindowDetails.find(d => d.type === 'Door')
@@ -145,7 +252,6 @@ function App() {
       }
     })
 
-    // Calculate windows cost
     windows.forEach(() => {
       doorWindowCost += 200
       const existing = doorWindowDetails.find(d => d.type === 'Window')
@@ -246,7 +352,6 @@ function App() {
       ctx.fillText(widthM + 'm x ' + heightM + 'm', room.x + 8, room.y + 40)
     })
 
-    // Draw doors
     doors.forEach((door, index) => {
       ctx.fillStyle = selectedDoorIndex === index ? '#FFD700' : '#8B4513'
       ctx.fillRect(door.x, door.y, door.width, door.height)
@@ -254,7 +359,6 @@ function App() {
       ctx.lineWidth = 2
       ctx.strokeRect(door.x, door.y, door.width, door.height)
       
-      // Door swing arc
       ctx.beginPath()
       ctx.strokeStyle = '#8B4513'
       ctx.lineWidth = 1
@@ -266,7 +370,6 @@ function App() {
       ctx.stroke()
     })
 
-    // Draw windows
     windows.forEach((window, index) => {
       ctx.fillStyle = selectedWindowIndex === index ? '#FFD700' : '#87CEEB'
       ctx.fillRect(window.x, window.y, window.width, window.height)
@@ -274,7 +377,6 @@ function App() {
       ctx.lineWidth = 2
       ctx.strokeRect(window.x, window.y, window.width, window.height)
       
-      // Window panes
       ctx.strokeStyle = '#4682B4'
       ctx.lineWidth = 1
       if (window.width > window.height) {
@@ -290,7 +392,6 @@ function App() {
       }
     })
     
-    // Draw furniture
     furniture.forEach((item, index) => {
       const furnitureType = furnitureItems.find(f => f.type === item.type)
       
@@ -341,7 +442,7 @@ function App() {
       const widthM = (Math.abs(currentRoom.width) / 50).toFixed(1)
       const heightM = (Math.abs(currentRoom.height) / 50).toFixed(1)
       const area = (widthM * heightM).toFixed(1)
-      ctx.fillText(selectedRoomType + ': ' + widthM + 'm x ' + heightM + 'm (' + area + ' m2)', 
+      ctx.fillText(selectedRoomType + ': ' + widthM + 'm x ' + heightM + 'm (' + area + ' m²)', 
         Math.min(currentRoom.x, currentRoom.x + currentRoom.width) + 5, 
         Math.min(currentRoom.y, currentRoom.y + currentRoom.height) - 10)
     }
@@ -351,19 +452,15 @@ function App() {
     const threshold = 10
     for (let i = 0; i < rooms.length; i++) {
       const room = rooms[i]
-      // Top wall
       if (y >= room.y - threshold && y <= room.y + threshold && x >= room.x && x <= room.x + room.width) {
         return { roomIndex: i, wall: 'top', x: x - 20, y: room.y - 4, width: 40, height: 8 }
       }
-      // Bottom wall
       if (y >= room.y + room.height - threshold && y <= room.y + room.height + threshold && x >= room.x && x <= room.x + room.width) {
         return { roomIndex: i, wall: 'bottom', x: x - 20, y: room.y + room.height - 4, width: 40, height: 8 }
       }
-      // Left wall
       if (x >= room.x - threshold && x <= room.x + threshold && y >= room.y && y <= room.y + room.height) {
         return { roomIndex: i, wall: 'left', x: room.x - 4, y: y - 20, width: 8, height: 40 }
       }
-      // Right wall
       if (x >= room.x + room.width - threshold && x <= room.x + room.width + threshold && y >= room.y && y <= room.y + room.height) {
         return { roomIndex: i, wall: 'right', x: room.x + room.width - 4, y: y - 20, width: 8, height: 40 }
       }
@@ -377,11 +474,9 @@ function App() {
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
 
-    // Clear all selections first
     setSelectedDoorIndex(null)
     setSelectedWindowIndex(null)
 
-    // Check for door/window placement modes
     if (mode === 'door' || mode === 'window') {
       const wallInfo = findWallAtPosition(x, y)
       if (wallInfo) {
@@ -394,7 +489,6 @@ function App() {
       return
     }
 
-    // Check if clicking on door
     const clickedDoorIndex = doors.findIndex(door => 
       x >= door.x && x <= door.x + door.width &&
       y >= door.y && y <= door.y + door.height
@@ -407,7 +501,6 @@ function App() {
       return
     }
 
-    // Check if clicking on window
     const clickedWindowIndex = windows.findIndex(win => 
       x >= win.x && x <= win.x + win.width &&
       y >= win.y && y <= win.y + win.height
@@ -420,7 +513,6 @@ function App() {
       return
     }
 
-    // Check if clicking on furniture
     const clickedFurnitureIndex = furniture.findIndex(item => 
       x >= item.x && x <= item.x + item.width &&
       y >= item.y && y <= item.y + item.height
@@ -595,6 +687,7 @@ function App() {
   }
 
   const clearCanvas = () => {
+    if (!confirm('Clear all? This cannot be undone.')) return
     setRooms([])
     setFurniture([])
     setDoors([])
@@ -629,8 +722,95 @@ function App() {
     <div className="app">
       <header className="header">
         <h1>ChalsHomeDesign</h1>
-        <p>Draw rooms - Add doors/windows - Add furniture - See in 3D</p>
+        <p>Design your dream home in 2D & 3D</p>
       </header>
+
+      {/* Save/Load Buttons */}
+      <div className="save-load-bar">
+        <button className="save-btn" onClick={() => setShowSaveModal(true)} disabled={rooms.length === 0}>
+          💾 Save
+        </button>
+        <button className="load-btn" onClick={() => setShowLoadModal(true)}>
+          📂 Load
+        </button>
+        {lastSaved && (
+          <span className="last-saved">Last saved: {lastSaved}</span>
+        )}
+        <label className="auto-save-toggle">
+          <input 
+            type="checkbox" 
+            checked={autoSaveEnabled} 
+            onChange={(e) => setAutoSaveEnabled(e.target.checked)}
+          />
+          Auto-save
+        </label>
+      </div>
+
+      {/* Save Modal */}
+      {showSaveModal && (
+        <div className="modal-overlay" onClick={() => setShowSaveModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>💾 Save Design</h2>
+            <input
+              type="text"
+              placeholder="Enter design name..."
+              value={saveName}
+              onChange={(e) => setSaveName(e.target.value)}
+              maxLength={30}
+              autoFocus
+            />
+            <div className="modal-info">
+              <p>Rooms: {rooms.length} | Furniture: {furniture.length}</p>
+              <p>Total Area: {totalArea} m² | Cost: £{budget.grandTotal.toFixed(0)}</p>
+            </div>
+            <div className="modal-buttons">
+              <button onClick={saveDesign} className="confirm-btn">Save</button>
+              <button onClick={() => setShowSaveModal(false)} className="cancel-btn">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Load Modal */}
+      {showLoadModal && (
+        <div className="modal-overlay" onClick={() => setShowLoadModal(false)}>
+          <div className="modal load-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>📂 Load Design</h2>
+            
+            {/* Auto-save option */}
+            {localStorage.getItem('chalsHomeAutoSave') && (
+              <div className="auto-save-option">
+                <button onClick={loadAutoSave} className="auto-save-btn">
+                  🔄 Restore Auto-Saved Design
+                </button>
+              </div>
+            )}
+
+            {savedDesigns.length === 0 ? (
+              <p className="no-saves">No saved designs yet.</p>
+            ) : (
+              <div className="saved-designs-list">
+                {savedDesigns.map((design) => (
+                  <div key={design.id} className="saved-design-item">
+                    <div className="design-info">
+                      <strong>{design.name}</strong>
+                      <span>{design.rooms?.length || 0} rooms | {design.furniture?.length || 0} furniture</span>
+                      <span>£{design.totalCost?.toFixed(0) || 0} | {new Date(design.timestamp).toLocaleDateString()}</span>
+                    </div>
+                    <div className="design-actions">
+                      <button onClick={() => loadDesign(design)} className="load-design-btn">Load</button>
+                      <button onClick={() => deleteDesign(design.id)} className="delete-design-btn">🗑️</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="modal-buttons">
+              <button onClick={() => setShowLoadModal(false)} className="cancel-btn">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="mode-toggle">
         <button 
@@ -756,7 +936,7 @@ function App() {
                 onMouseDown={() => handleFurnitureDragStart(item)}
                 style={{ backgroundColor: item.color }}
               >
-                {item.label} - ${item.price}
+                {item.label} - £{item.price}
               </div>
             ))}
           </div>
@@ -768,32 +948,24 @@ function App() {
           <div className="budget-header">
             <h2>Budget Estimate</h2>
             <div className="grand-total">
-              Total: <span>${budget.grandTotal.toFixed(0)}</span>
+              Total: <span>£{budget.grandTotal.toFixed(0)}</span>
             </div>
           </div>
 
           <div className="budget-sections">
             <div className="budget-section">
-              <h3>Flooring - ${budget.flooring.total.toFixed(0)}</h3>
+              <h3>Flooring - £{budget.flooring.total.toFixed(0)}</h3>
               {budget.flooring.details.length === 0 ? (
                 <p className="no-items">No rooms added yet</p>
               ) : (
                 <table>
                   <thead>
-                    <tr>
-                      <th>Room</th>
-                      <th>Type</th>
-                      <th>Area</th>
-                      <th>Cost</th>
-                    </tr>
+                    <tr><th>Room</th><th>Type</th><th>Area</th><th>Cost</th></tr>
                   </thead>
                   <tbody>
                     {budget.flooring.details.map((item, i) => (
                       <tr key={i}>
-                        <td>{item.room}</td>
-                        <td>{item.type}</td>
-                        <td>{item.area} m2</td>
-                        <td>${item.cost}</td>
+                        <td>{item.room}</td><td>{item.type}</td><td>{item.area} m²</td><td>£{item.cost}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -802,26 +974,18 @@ function App() {
             </div>
 
             <div className="budget-section">
-              <h3>Paint - ${budget.paint.total.toFixed(0)}</h3>
+              <h3>Paint - £{budget.paint.total.toFixed(0)}</h3>
               {budget.paint.details.length === 0 ? (
                 <p className="no-items">No rooms added yet</p>
               ) : (
                 <table>
                   <thead>
-                    <tr>
-                      <th>Room</th>
-                      <th>Color</th>
-                      <th>Wall Area</th>
-                      <th>Cost</th>
-                    </tr>
+                    <tr><th>Room</th><th>Color</th><th>Wall Area</th><th>Cost</th></tr>
                   </thead>
                   <tbody>
                     {budget.paint.details.map((item, i) => (
                       <tr key={i}>
-                        <td>{item.room}</td>
-                        <td>{item.color}</td>
-                        <td>{item.area} m2</td>
-                        <td>${item.cost}</td>
+                        <td>{item.room}</td><td>{item.color}</td><td>{item.area} m²</td><td>£{item.cost}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -830,26 +994,18 @@ function App() {
             </div>
 
             <div className="budget-section">
-              <h3>Furniture - ${budget.furniture.total.toFixed(0)}</h3>
+              <h3>Furniture - £{budget.furniture.total.toFixed(0)}</h3>
               {budget.furniture.details.length === 0 ? (
                 <p className="no-items">No furniture added yet</p>
               ) : (
                 <table>
                   <thead>
-                    <tr>
-                      <th>Item</th>
-                      <th>Qty</th>
-                      <th>Unit Price</th>
-                      <th>Total</th>
-                    </tr>
+                    <tr><th>Item</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr>
                   </thead>
                   <tbody>
                     {budget.furniture.details.map((item, i) => (
                       <tr key={i}>
-                        <td>{item.type}</td>
-                        <td>{item.quantity}</td>
-                        <td>${item.unitPrice}</td>
-                        <td>${item.cost}</td>
+                        <td>{item.type}</td><td>{item.quantity}</td><td>£{item.unitPrice}</td><td>£{item.cost}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -858,54 +1014,23 @@ function App() {
             </div>
 
             <div className="budget-section">
-              <h3>Doors & Windows - ${budget.doorWindow.total.toFixed(0)}</h3>
+              <h3>Doors & Windows - £{budget.doorWindow.total.toFixed(0)}</h3>
               {budget.doorWindow.details.length === 0 ? (
                 <p className="no-items">No doors/windows added yet</p>
               ) : (
                 <table>
                   <thead>
-                    <tr>
-                      <th>Item</th>
-                      <th>Qty</th>
-                      <th>Unit Price</th>
-                      <th>Total</th>
-                    </tr>
+                    <tr><th>Item</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr>
                   </thead>
                   <tbody>
                     {budget.doorWindow.details.map((item, i) => (
                       <tr key={i}>
-                        <td>{item.type}</td>
-                        <td>{item.quantity}</td>
-                        <td>${item.unitPrice}</td>
-                        <td>${item.cost}</td>
+                        <td>{item.type}</td><td>{item.quantity}</td><td>£{item.unitPrice}</td><td>£{item.cost}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
-            </div>
-          </div>
-
-          <div className="budget-summary">
-            <div className="summary-row">
-              <span>Flooring:</span>
-              <span>${budget.flooring.total.toFixed(0)}</span>
-            </div>
-            <div className="summary-row">
-              <span>Paint:</span>
-              <span>${budget.paint.total.toFixed(0)}</span>
-            </div>
-            <div className="summary-row">
-              <span>Furniture:</span>
-              <span>${budget.furniture.total.toFixed(0)}</span>
-            </div>
-            <div className="summary-row">
-              <span>Doors & Windows:</span>
-              <span>${budget.doorWindow.total.toFixed(0)}</span>
-            </div>
-            <div className="summary-row total">
-              <span>Grand Total:</span>
-              <span>${budget.grandTotal.toFixed(0)}</span>
             </div>
           </div>
         </div>
@@ -916,8 +1041,8 @@ function App() {
         <span>Doors: <strong>{doors.length}</strong></span>
         <span>Windows: <strong>{windows.length}</strong></span>
         <span>Furniture: <strong>{furniture.length}</strong></span>
-        <span>Area: <strong>{totalArea} m2</strong></span>
-        <span className="budget-preview">Cost: <strong>${budget.grandTotal.toFixed(0)}</strong></span>
+        <span>Area: <strong>{totalArea} m²</strong></span>
+        <span className="budget-preview">Cost: <strong>£{budget.grandTotal.toFixed(0)}</strong></span>
         
         <div className="actions-bar">
           {selectedRoomIndex !== null && (
