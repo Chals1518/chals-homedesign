@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import './App.css'
 import ThreeScene from './ThreeScene'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 
 function App() {
   const canvasRef = useRef(null)
@@ -82,7 +84,6 @@ function App() {
       setSavedDesigns(JSON.parse(saved))
     }
     
-    // Check for auto-saved design
     const autoSaved = localStorage.getItem('chalsHomeAutoSave')
     if (autoSaved) {
       const data = JSON.parse(autoSaved)
@@ -105,7 +106,7 @@ function App() {
       }
       localStorage.setItem('chalsHomeAutoSave', JSON.stringify(designData))
       setLastSaved(new Date().toLocaleTimeString())
-    }, 30000) // 30 seconds
+    }, 30000)
 
     return () => clearInterval(autoSaveInterval)
   }, [rooms, furniture, doors, windows, autoSaveEnabled])
@@ -131,7 +132,6 @@ function App() {
 
     const updatedDesigns = [...savedDesigns, designData]
     
-    // Keep only last 10 designs
     if (updatedDesigns.length > 10) {
       updatedDesigns.shift()
     }
@@ -178,6 +178,147 @@ function App() {
     const updatedDesigns = savedDesigns.filter(d => d.id !== id)
     localStorage.setItem('chalsHomeDesigns', JSON.stringify(updatedDesigns))
     setSavedDesigns(updatedDesigns)
+  }
+
+  // Export to PDF function
+  const exportToPDF = async () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const pdf = new jsPDF('landscape', 'mm', 'a4')
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const pageHeight = pdf.internal.pageSize.getHeight()
+
+    // Header
+    pdf.setFillColor(26, 26, 46)
+    pdf.rect(0, 0, pageWidth, 25, 'F')
+    
+    pdf.setTextColor(255, 255, 255)
+    pdf.setFontSize(20)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('ChalsHomeDesign', 10, 15)
+    
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text('Floor Plan Export', pageWidth - 50, 12)
+    pdf.text(new Date().toLocaleDateString(), pageWidth - 50, 18)
+
+    // Convert canvas to image
+    const canvasImage = canvas.toDataURL('image/png')
+    
+    // Add floor plan image
+    const imgWidth = 160
+    const imgHeight = 100
+    pdf.addImage(canvasImage, 'PNG', 10, 30, imgWidth, imgHeight)
+
+    // Project Summary Box
+    pdf.setDrawColor(100, 200, 255)
+    pdf.setLineWidth(0.5)
+    pdf.rect(180, 30, 105, 100, 'S')
+    
+    pdf.setTextColor(0, 0, 0)
+    pdf.setFontSize(14)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('Project Summary', 185, 40)
+    
+    pdf.setFontSize(10)
+    pdf.setFont('helvetica', 'normal')
+    
+    let yPos = 50
+    
+    pdf.text(`Total Rooms: ${rooms.length}`, 185, yPos)
+    yPos += 7
+    pdf.text(`Total Furniture: ${furniture.length}`, 185, yPos)
+    yPos += 7
+    pdf.text(`Doors: ${doors.length}  |  Windows: ${windows.length}`, 185, yPos)
+    yPos += 7
+    pdf.text(`Total Area: ${totalArea} m²`, 185, yPos)
+    yPos += 12
+
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('Rooms:', 185, yPos)
+    pdf.setFont('helvetica', 'normal')
+    yPos += 6
+    
+    rooms.forEach(room => {
+      const area = ((room.width / 50) * (room.height / 50)).toFixed(1)
+      pdf.text(`• ${room.type}: ${area} m²`, 188, yPos)
+      yPos += 5
+    })
+
+    // Budget Section
+    yPos = 140
+    pdf.setFillColor(39, 174, 96)
+    pdf.rect(10, yPos, pageWidth - 20, 8, 'F')
+    pdf.setTextColor(255, 255, 255)
+    pdf.setFontSize(12)
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('BUDGET ESTIMATE', 15, yPos + 6)
+    pdf.text(`TOTAL: £${budget.grandTotal.toFixed(0)}`, pageWidth - 60, yPos + 6)
+
+    yPos += 15
+    pdf.setTextColor(0, 0, 0)
+    pdf.setFontSize(10)
+
+    const col1 = 15
+    const col2 = 80
+    const col3 = 145
+    const col4 = 210
+
+    pdf.setFont('helvetica', 'bold')
+    pdf.text('Flooring', col1, yPos)
+    pdf.text('Paint', col2, yPos)
+    pdf.text('Furniture', col3, yPos)
+    pdf.text('Doors & Windows', col4, yPos)
+    
+    yPos += 6
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9)
+
+    let floorY = yPos
+    budget.flooring.details.forEach(item => {
+      pdf.text(`${item.room}: £${item.cost}`, col1, floorY)
+      floorY += 5
+    })
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(`Total: £${budget.flooring.total.toFixed(0)}`, col1, floorY + 2)
+
+    let paintY = yPos
+    budget.paint.details.forEach(item => {
+      pdf.text(`${item.room}: £${item.cost}`, col2, paintY)
+      paintY += 5
+    })
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(`Total: £${budget.paint.total.toFixed(0)}`, col2, paintY + 2)
+
+    pdf.setFont('helvetica', 'normal')
+    let furnY = yPos
+    budget.furniture.details.forEach(item => {
+      pdf.text(`${item.type} x${item.quantity}: £${item.cost}`, col3, furnY)
+      furnY += 5
+    })
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(`Total: £${budget.furniture.total.toFixed(0)}`, col3, furnY + 2)
+
+    pdf.setFont('helvetica', 'normal')
+    let dwY = yPos
+    budget.doorWindow.details.forEach(item => {
+      pdf.text(`${item.type} x${item.quantity}: £${item.cost}`, col4, dwY)
+      dwY += 5
+    })
+    pdf.setFont('helvetica', 'bold')
+    pdf.text(`Total: £${budget.doorWindow.total.toFixed(0)}`, col4, dwY + 2)
+
+    // Footer
+    pdf.setFillColor(26, 26, 46)
+    pdf.rect(0, pageHeight - 10, pageWidth, 10, 'F')
+    pdf.setTextColor(150, 150, 150)
+    pdf.setFontSize(8)
+    pdf.setFont('helvetica', 'normal')
+    pdf.text('Generated by ChalsHomeDesign | www.chalshomedesign.com', pageWidth / 2, pageHeight - 4, { align: 'center' })
+
+    const fileName = `ChalsHomeDesign_FloorPlan_${new Date().toISOString().slice(0,10)}.pdf`
+    pdf.save(fileName)
   }
 
   const getSelectedRoomStyle = () => {
@@ -725,13 +866,16 @@ function App() {
         <p>Design your dream home in 2D & 3D</p>
       </header>
 
-      {/* Save/Load Buttons */}
+      {/* Save/Load/Export Buttons */}
       <div className="save-load-bar">
         <button className="save-btn" onClick={() => setShowSaveModal(true)} disabled={rooms.length === 0}>
           💾 Save
         </button>
         <button className="load-btn" onClick={() => setShowLoadModal(true)}>
           📂 Load
+        </button>
+        <button className="export-btn" onClick={exportToPDF} disabled={rooms.length === 0}>
+          📄 Export PDF
         </button>
         {lastSaved && (
           <span className="last-saved">Last saved: {lastSaved}</span>
@@ -777,7 +921,6 @@ function App() {
           <div className="modal load-modal" onClick={(e) => e.stopPropagation()}>
             <h2>📂 Load Design</h2>
             
-            {/* Auto-save option */}
             {localStorage.getItem('chalsHomeAutoSave') && (
               <div className="auto-save-option">
                 <button onClick={loadAutoSave} className="auto-save-btn">
